@@ -1,4 +1,4 @@
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
-github.com/xoctopus/x v0.4.0 h1:/9u7ivRIFIN1Op8ltNXAs2sycRRcn1OkqWCUZL3yDfM=
-github.com/xoctopus/x v0.4.0/go.mod h1:Lij++DAU2O2DdZ5IB/Svpx88Cgs618Zb2cBSapp1vNs=
+github.com/xoctopus/x v0.4.6 h1:6KLV4DwG1R1d1feoMIOnW700XZBSR84c3W7Oo3lvYiM=
+github.com/xoctopus/x v0.4.6/go.mod h1:Lij++DAU2O2DdZ5IB/Svpx88Cgs618Zb2cBSapp1vNs=
