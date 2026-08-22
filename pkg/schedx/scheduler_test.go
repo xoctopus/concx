@@ -1,4 +1,4 @@
-package schex_test
+package schedx_test
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/xoctopus/x/misc/must"
 	. "github.com/xoctopus/x/testx"
 
-	"github.com/xoctopus/schex/pkg/schex"
+	"github.com/xoctopus/concx/pkg/schedx"
 )
 
 type MockHandler[T any] struct{}
@@ -23,11 +23,11 @@ func (MockHandler[T]) Do(ctx context.Context, v T) error {
 func BenchmarkPushConcurrent(b *testing.B) {
 	ctx := context.Background()
 
-	s := schex.NewScheduler[int](
-		schex.JobFunc[int](func(context.Context, int) error { return nil }),
-		schex.WithoutPendingLimitation[int](),
-		schex.WithParallel[int](8),
-		schex.WithCloseTimeout[int](0),
+	s := schedx.NewScheduler[int](
+		schedx.JobFunc[int](func(context.Context, int) error { return nil }),
+		schedx.WithoutPendingLimitation[int](),
+		schedx.WithParallel[int](8),
+		schedx.WithCloseTimeout[int](0),
 	)
 
 	must.NoError(s.Run(ctx))
@@ -43,10 +43,10 @@ func BenchmarkPushConcurrent(b *testing.B) {
 	})
 }
 
-func bench[T any](b *testing.B, options ...schex.SchedulerOptionApplier[T]) {
+func bench[T any](b *testing.B, options ...schedx.SchedulerOptionApplier[T]) {
 	ctx := context.Background()
 
-	s := schex.NewScheduler[T](&MockHandler[T]{}, options...)
+	s := schedx.NewScheduler[T](&MockHandler[T]{}, options...)
 	defer func() { _ = s.Close() }()
 
 	must.NoError(s.Run(ctx))
@@ -67,41 +67,41 @@ func Benchmark(b *testing.B) {
 	b.Run("LIFO_x16", func(b *testing.B) {
 		bench(
 			b,
-			schex.WithoutPendingLimitation[int](),
-			schex.WithParallel[int](16),
-			schex.WithLifoScheduleMode[int](),
-			schex.WithCloseTimeout[int](timeout),
+			schedx.WithoutPendingLimitation[int](),
+			schedx.WithParallel[int](16),
+			schedx.WithLifoScheduleMode[int](),
+			schedx.WithCloseTimeout[int](timeout),
 		)
 	})
 
 	b.Run("FIFO_x16", func(b *testing.B) {
 		bench(
 			b,
-			schex.WithoutPendingLimitation[int](),
-			schex.WithParallel[int](16),
-			schex.WithFifoScheduleMode[int](),
-			schex.WithCloseTimeout[int](timeout),
+			schedx.WithoutPendingLimitation[int](),
+			schedx.WithParallel[int](16),
+			schedx.WithFifoScheduleMode[int](),
+			schedx.WithCloseTimeout[int](timeout),
 		)
 	})
 
-	for parallel := 100; parallel <= schex.MaxParallel; parallel *= 10 {
+	for parallel := 100; parallel <= schedx.MaxParallel; parallel *= 10 {
 		b.Run("FIFO_x"+strconv.Itoa(parallel), func(b *testing.B) {
 			bench(
 				b,
-				schex.WithoutPendingLimitation[int](),
-				schex.WithParallel[int](parallel+1),
-				schex.WithFifoScheduleMode[int](),
-				schex.WithCloseTimeout[int](timeout),
+				schedx.WithoutPendingLimitation[int](),
+				schedx.WithParallel[int](parallel+1),
+				schedx.WithFifoScheduleMode[int](),
+				schedx.WithCloseTimeout[int](timeout),
 			)
 		})
 		runtime.GC()
 		b.Run("LIFO_x"+strconv.Itoa(parallel), func(b *testing.B) {
 			bench(
 				b,
-				schex.WithoutPendingLimitation[int](),
-				schex.WithParallel[int](parallel+1),
-				schex.WithLifoScheduleMode[int](),
-				schex.WithCloseTimeout[int](timeout),
+				schedx.WithoutPendingLimitation[int](),
+				schedx.WithParallel[int](parallel+1),
+				schedx.WithLifoScheduleMode[int](),
+				schedx.WithCloseTimeout[int](timeout),
 			)
 		})
 		runtime.GC()
@@ -110,23 +110,23 @@ func Benchmark(b *testing.B) {
 
 func TestScheduler(t *testing.T) {
 	expect := errors.New("callback")
-	s := schex.NewScheduler(
-		schex.JobFunc[int](func(ctx context.Context, v int) error {
+	s := schedx.NewScheduler(
+		schedx.JobFunc[int](func(ctx context.Context, v int) error {
 			if v == 2 {
 				return expect
 			}
 			return nil
 		}),
-		schex.WithCallback(func(v int, err error) {
+		schedx.WithCallback(func(v int, err error) {
 			if errors.Is(err, expect) {
 				Expect(t, v, Equal(2))
 			}
 		}),
-		schex.WithExitCallback(func(pending []int, err error) {
-			Expect(t, err, IsCodeError(schex.ERROR__SCHEDULER_CANCELED))
+		schedx.WithExitCallback(func(pending []int, err error) {
+			Expect(t, err, IsCodeError(schedx.ERROR__SCHEDULER_CANCELED))
 		}),
-		schex.WithMaxPending[int](2),
-		schex.WithoutDetached[int](),
+		schedx.WithMaxPending[int](2),
+		schedx.WithoutDetached[int](),
 	)
 	ctx := t.Context()
 
@@ -135,8 +135,8 @@ func TestScheduler(t *testing.T) {
 	Expect(t, s.Push(ctx, 1), Succeed())
 	Expect(t, s.Close(), Succeed())
 
-	s = schex.NewScheduler(
-		schex.JobFunc[int](func(ctx context.Context, v int) error {
+	s = schedx.NewScheduler(
+		schedx.JobFunc[int](func(ctx context.Context, v int) error {
 			switch v {
 			case 1:
 				panic(expect)
@@ -144,8 +144,8 @@ func TestScheduler(t *testing.T) {
 				panic("string")
 			}
 		}),
-		schex.WithCallback(func(v int, err error) {
-			Expect(t, err, IsCodeError(schex.ERROR__SCHEDULER_JOB_PANICKED))
+		schedx.WithCallback(func(v int, err error) {
+			Expect(t, err, IsCodeError(schedx.ERROR__SCHEDULER_JOB_PANICKED))
 			switch v {
 			case 1:
 				Expect(t, err, IsError(expect))
@@ -153,17 +153,17 @@ func TestScheduler(t *testing.T) {
 				Expect(t, err, ErrorContains("string"))
 			}
 		}),
-		schex.WithMaxPending[int](2),
+		schedx.WithMaxPending[int](2),
 	)
 	ctx = context.Background()
 	Expect(t, s.Push(ctx, 1), Succeed())
 	Expect(t, s.Push(ctx, 2), Succeed())
-	Expect(t, s.Push(ctx, 3), IsCodeError(schex.ERROR__REACH_MAX_PENDING))
+	Expect(t, s.Push(ctx, 3), IsCodeError(schedx.ERROR__REACH_MAX_PENDING))
 
 	Expect(t, s.Run(ctx), Succeed())
-	Expect(t, s.Run(ctx), IsCodeError(schex.ERROR__SCHEDULER_RERUN))
+	Expect(t, s.Run(ctx), IsCodeError(schedx.ERROR__SCHEDULER_RERUN))
 	time.Sleep(2 * time.Second)
 
 	Expect(t, s.Close(), Succeed())
-	Expect(t, s.Push(ctx, 1), IsCodeError(schex.ERROR__SCHEDULER_CANCELED))
+	Expect(t, s.Push(ctx, 1), IsCodeError(schedx.ERROR__SCHEDULER_CANCELED))
 }

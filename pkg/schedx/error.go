@@ -1,4 +1,4 @@
-package schex
+package schedx
 
 // Error defines error codes of scheduler
 // +genx:code

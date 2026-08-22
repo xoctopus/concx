@@ -1,4 +1,4 @@
-package schex
+package schedx
 
 import (
 	"sync/atomic"

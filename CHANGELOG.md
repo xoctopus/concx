@@ -1,12 +1,16 @@
 
 <a name="HEAD"></a>
-## [HEAD](https://github.com/xoctopus/schex/compare/v0.1.0...HEAD)
+## [HEAD](https://github.com/xoctopus/concx/compare/v0.1.0...HEAD)
 
-> 0001-01-01
+> 2026-03-12
+
+### Chore
+
+* go fix for mordernization
 
 
 <a name="v0.1.0"></a>
-## [v0.1.0](https://github.com/xoctopus/schex/compare/v0.0.5...v0.1.0)
+## [v0.1.0](https://github.com/xoctopus/concx/compare/v0.0.5...v0.1.0)
 
 > 2026-03-08
 
@@ -16,7 +20,7 @@
 
 
 <a name="v0.0.5"></a>
-## [v0.0.5](https://github.com/xoctopus/schex/compare/v0.0.4...v0.0.5)
+## [v0.0.5](https://github.com/xoctopus/concx/compare/v0.0.4...v0.0.5)
 
 > 2026-03-04
 
@@ -30,7 +34,7 @@
 
 
 <a name="v0.0.4"></a>
-## [v0.0.4](https://github.com/xoctopus/schex/compare/v0.0.3...v0.0.4)
+## [v0.0.4](https://github.com/xoctopus/concx/compare/v0.0.3...v0.0.4)
 
 > 2026-03-04
 
@@ -45,7 +49,7 @@
 
 
 <a name="v0.0.3"></a>
-## [v0.0.3](https://github.com/xoctopus/schex/compare/v0.0.2...v0.0.3)
+## [v0.0.3](https://github.com/xoctopus/concx/compare/v0.0.2...v0.0.3)
 
 > 2026-03-03
 
@@ -60,7 +64,7 @@
 
 
 <a name="v0.0.2"></a>
-## [v0.0.2](https://github.com/xoctopus/schex/compare/v0.0.1...v0.0.2)
+## [v0.0.2](https://github.com/xoctopus/concx/compare/v0.0.1...v0.0.2)
 
 > 2026-03-02
 

@@ -1,4 +1,4 @@
-package schex
+package schedx
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/xoctopus/x/container/stack"
 	"github.com/xoctopus/x/misc/must"
 
-	"github.com/xoctopus/schex/pkg/synapse"
+	"github.com/xoctopus/concx/pkg/nest"
 )
 
 func NewScheduler[T any](fn Job[T], appliers ...SchedulerOptionApplier[T]) Scheduler[T] {
@@ -54,7 +54,7 @@ type scheduler[T any] struct {
 	option[T]
 
 	cond *sync.Cond
-	syn  synapse.Synapse
+	nest nest.Nest
 
 	// fn job handler
 	fn Job[T]
@@ -67,7 +67,7 @@ type scheduler[T any] struct {
 }
 
 func (s *scheduler[T]) Push(_ context.Context, v T) error {
-	if s.syn != nil && s.syn.Canceled() {
+	if s.nest != nil && s.nest.Canceled() {
 		return codex.New(ERROR__SCHEDULER_CANCELED)
 	}
 
@@ -98,9 +98,9 @@ func (s *scheduler[T]) Run(ctx context.Context) (err error) {
 		return codex.New(ERROR__SCHEDULER_RERUN)
 	}
 
-	s.syn = synapse.NewSynapse(
+	s.nest = nest.New(
 		ctx,
-		synapse.WithBeforeCloseFunc(func(ctx context.Context) {
+		nest.WithBeforeCloseFunc(func(ctx context.Context) {
 			go func() {
 				for {
 					select {
@@ -113,7 +113,7 @@ func (s *scheduler[T]) Run(ctx context.Context) (err error) {
 				}
 			}()
 		}),
-		synapse.WithAfterCloseFunc(func(cause error) error {
+		nest.WithAfterCloseFunc(func(cause error) error {
 			if s.exitCbCalled.CompareAndSwap(false, true) {
 				if s.scheExitCallback != nil {
 					s.scheExitCallback(cause)
@@ -121,18 +121,18 @@ func (s *scheduler[T]) Run(ctx context.Context) (err error) {
 			}
 			return nil
 		}),
-		synapse.WithShutdownTimeout(s.closeTimeout),
+		nest.WithShutdownTimeout(s.closeTimeout),
 	)
 
 	defer func() {
 		if err != nil {
-			s.syn.Cancel(err)
-			<-s.syn.Done()
+			s.nest.Cancel(err)
+			<-s.nest.Done()
 		}
 	}()
 
 	for range s.parallel {
-		if err = s.syn.Spawn(s.run); err == nil {
+		if err = s.nest.Spawn(s.run); err == nil {
 			continue
 		}
 		return
@@ -144,10 +144,10 @@ func (s *scheduler[T]) run(ctx context.Context) {
 	for {
 		s.cond.L.Lock()
 		// avoid spurious waking up
-		for s.tasks.Len() == 0 && !s.syn.Canceled() {
+		for s.tasks.Len() == 0 && !s.nest.Canceled() {
 			s.cond.Wait()
 		}
-		if s.syn.Canceled() {
+		if s.nest.Canceled() {
 			s.cond.L.Unlock()
 			return
 		}
@@ -189,10 +189,10 @@ func (s *scheduler[T]) Pending() int {
 }
 
 func (s *scheduler[T]) Close() error {
-	if s.syn != nil {
-		s.syn.Cancel(codex.New(ERROR__SCHEDULER_CANCELED))
-		err := s.syn.Err()
-		if codex.IsCode(err, synapse.ERROR__SYNAPSE_CLOSE_TIMEOUT) {
+	if s.nest != nil {
+		s.nest.Cancel(codex.New(ERROR__SCHEDULER_CANCELED))
+		err := s.nest.Err()
+		if codex.IsCode(err, nest.ERROR__NEST_CLOSE_TIMEOUT) {
 			return err
 		}
 	}

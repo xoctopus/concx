@@ -1,4 +1,4 @@
-package synapse
+package nest
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/xoctopus/x/codex"
 )
 
-type Synapse interface {
+type Nest interface {
 	context.Context
 
 	Parent() context.Context
@@ -20,8 +20,8 @@ type Synapse interface {
 	Canceled() bool
 }
 
-func NewSynapse(ctx context.Context, appliers ...OptionApplier) Synapse {
-	x := &synapse{
+func New(ctx context.Context, appliers ...OptionApplier) Nest {
+	x := &nest{
 		inherited: ctx,
 		done:      make(chan struct{}),
 	}
@@ -46,7 +46,7 @@ func NewSynapse(ctx context.Context, appliers ...OptionApplier) Synapse {
 	return x
 }
 
-type synapse struct {
+type nest struct {
 	option
 
 	inherited  context.Context
@@ -61,53 +61,48 @@ type synapse struct {
 	done     chan struct{}
 }
 
-func (x *synapse) Parent() context.Context {
+func (x *nest) Parent() context.Context {
 	return x.inherited
 }
 
-func (x *synapse) Children() context.Context {
+func (x *nest) Children() context.Context {
 	return x.dispatched
 }
 
-func (x *synapse) Deadline() (time.Time, bool) {
+func (x *nest) Deadline() (time.Time, bool) {
 	return x.dispatched.Deadline()
 }
 
-func (x *synapse) Done() <-chan struct{} {
+func (x *nest) Done() <-chan struct{} {
 	return x.done
 }
 
-func (x *synapse) Err() error {
+func (x *nest) Err() error {
 	<-x.Done()
 	return x.err
 }
 
-func (x *synapse) Value(key any) any {
+func (x *nest) Value(key any) any {
 	return x.dispatched.Value(key)
 }
 
-func (x *synapse) Spawn(f func(ctx context.Context)) error {
+func (x *nest) Spawn(f func(ctx context.Context)) error {
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	if !x.canceled.Load() {
 		x.wg.Go(func() {
-			// id := x.count.Add(1)
-			// fmt.Println(id)
-			// defer func() {
-			// 	fmt.Println("closed:", id)
-			// }()
 			f(x.dispatched)
 		})
 		return nil
 	}
-	return codex.New(ERROR__SYNAPSE_CLOSED)
+	return codex.New(ERROR__NEST_CLOSED)
 }
 
-func (x *synapse) Canceled() bool {
+func (x *nest) Canceled() bool {
 	return x.canceled.Load()
 }
 
-func (x *synapse) Cancel(cause error) {
+func (x *nest) Cancel(cause error) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	if x.canceled.CompareAndSwap(false, true) {
@@ -143,7 +138,7 @@ func (x *synapse) Cancel(cause error) {
 			case <-sig:
 				return
 			case <-time.After(x.shutdownTimeout):
-				err = codex.New(ERROR__SYNAPSE_CLOSE_TIMEOUT)
+				err = codex.New(ERROR__NEST_CLOSE_TIMEOUT)
 				return
 			}
 		}
@@ -165,7 +160,7 @@ func WithShutdownTimeout(timeout time.Duration) OptionApplier {
 	}
 }
 
-// WithBeforeCloseFunc registers a hook that executes before the Synapse.Cancel
+// WithBeforeCloseFunc registers a hook that executes before Nest.Cancel
 // process begins. The provided context is canceled either when all goroutines
 // have finished or once the shutdownTimeout is reached if configurated.
 // This is typically used to signal or wake up suspended goroutines (e.g., via sync.Cond).
@@ -179,7 +174,7 @@ func WithBeforeCloseFunc(beforeCloseFunc func(context.Context)) OptionApplier {
 
 // WithAfterCloseFunc registers a post-close hook.
 // ensures afterCloseFunc is invoked after all goroutines exited, providing
-// synchronous waiting for Synapse.Cancel.
+// synchronous waiting for Nest.Cancel.
 // The err parameter passed to indicates why the shutdown was triggered (eg: context.Cause).
 func WithAfterCloseFunc(afterCloseFunc func(error) error) OptionApplier {
 	return func(o *option) {

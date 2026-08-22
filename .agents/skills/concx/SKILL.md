@@ -1,0 +1,63 @@
+---
+name: concx
+description:
+  - 说明如何用 `github.com/xoctopus/concx` 做受约束并发（生命周期 / 编排 / 通信）
+  - Nest: Spawn / Cancel / 统一生命周期
+  - Scheduler: 入队 / 并发执行 / pending 限制 / 安全退出
+  - chanx: Observer / Subject / 可取消值流
+  - 当需要在宿主项目接入 concx, 选型三包, 或排查关闭/超限错误时使用
+---
+
+# concx
+
+- 选型与 Scheduler: [references/schedx-howto-guideline.md](references/schedx-howto-guideline.md)
+- Nest 生命周期: [references/nest-howto-guideline.md](references/nest-howto-guideline.md)
+- chanx 通信: [references/chanx-howto-guideline.md](references/chanx-howto-guideline.md)
+- 包文档: `go doc github.com/xoctopus/concx/pkg/{schedx,nest,chanx}`
+
+## 选型
+
+| 需求                                  | 用                    |
+|---------------------------------------|-----------------------|
+| 树形协程派生、统一取消与退出          | `pkg/nest`            |
+| 任务排队 + 并行/串行消化（FIFO/LIFO） | `pkg/schedx`          |
+| 协程间传值/多播、可取消订阅           | `pkg/chanx`           |
+| 编排内部已用 Nest                     | 一般不必再包一层 Nest |
+
+## 最小 Scheduler
+
+```go
+s := schedx.NewScheduler(
+	schedx.JobFunc[int](func(ctx context.Context, v int) error {
+		return nil
+	}),
+	schedx.WithMaxPending[int](100),
+	schedx.WithParallel[int](8),
+)
+
+_ = s.Run(ctx)
+_ = s.Push(ctx, 1)
+_ = s.Close()
+```
+
+## 最小 Nest
+
+```go
+n := nest.New(ctx, nest.WithShutdownTimeout(5*time.Second))
+_ = n.Spawn(func(ctx context.Context) { /* 响应 ctx.Done() */ })
+n.Cancel(nil)
+<-n.Done()
+```
+
+## 最小 chanx
+
+```go
+obs := chanx.NewNotifiableObserver[int]()
+go func() {
+	obs.Send(1)
+	obs.CancelCause(nil)
+}()
+for v := range obs.Value() {
+	_ = v
+}
+```

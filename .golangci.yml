@@ -25,9 +25,11 @@ linters:
         - -QF1004
         - -QF1006
         - -QF1008
+        - -QF1012
         - -ST1000
         - -ST1001
         - -ST1003
         - -ST1021
+        - -SA5008
     gocyclo:
       min-complexity: 50

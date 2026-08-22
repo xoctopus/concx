@@ -1,7 +1,7 @@
-module github.com/xoctopus/schex
+module github.com/xoctopus/concx
 
-go 1.26.0
+go 1.26.5
 
-require github.com/xoctopus/x v0.4.0
+require github.com/xoctopus/x v0.5.6
 
 require github.com/google/go-cmp v0.7.0 // indirect
