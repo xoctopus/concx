@@ -1,13 +1,11 @@
 # concx
 
-受约束并发工具箱：生命周期、编排、通信。
+<p align="left">
+  <a href="https://github.com/xoctopus/concx"><img src="https://img.shields.io/github/go-mod/go-version/xoctopus/concx?logo=go&style=flat-square&logoColor=white" alt="Go Version"></a>
+  <a href="https://github.com/xoctopus/concx/actions/workflows/lint.yml"><img src="https://img.shields.io/github/actions/workflow/status/xoctopus/concx/lint.yml?label=golangci-lint&logo=go&style=flat-square" alt="golangci-lint"></a>
+  <a href="https://codecov.io/gh/xoctopus/concx"><img src="https://img.shields.io/codecov/c/github/xoctopus/concx?logo=codecov&style=flat-square" alt="codecov"></a>
+  <a href="https://pkg.go.dev/github.com/xoctopus/concx"><img src="https://pkg.go.dev/badge/github.com/xoctopus/concx.svg" alt="Go Reference"></a>
+  <a href="https://github.com/xoctopus/concx/blob/main/LICENSE"><img src="https://img.shields.io/github/license/xoctopus/concx?style=flat-square" alt="License"></a>
+</p>
 
-| 包 | 轴 | 用途 |
-|----|-----|------|
-| [`pkg/nest`](pkg/nest) | 生命周期 | 受管派生、Spawn/Cancel、优雅退出 |
-| [`pkg/schedx`](pkg/schedx) | 编排 | 任务队列、并行/串行、FIFO/LIFO、pending |
-| [`pkg/chanx`](pkg/chanx) | 通信 | Observer/Subject、可取消值流 |
-
-`github.com/xoctopus/x/chanx` 已 archived，请使用本仓库 `pkg/chanx`。
-
-定位与扩展闸门见 [`pkg/todo.md`](pkg/todo.md).
+---
