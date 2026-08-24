@@ -1,12 +1,28 @@
 
 <a name="HEAD"></a>
-## [HEAD](https://github.com/xoctopus/concx/compare/v0.1.0...HEAD)
+## [HEAD](https://github.com/xoctopus/concx/compare/v0.2.0...HEAD)
 
-> 2026-03-12
+> 0001-01-01
+
+
+<a name="v0.2.0"></a>
+## [v0.2.0](https://github.com/xoctopus/concx/compare/v0.1.0...v0.2.0)
+
+> 2026-08-22
 
 ### Chore
 
 * go fix for mordernization
+
+### Doc
+
+* update README
+
+### BREAKING CHANGE
+
+
+import paths and public API names changed; consumers
+must switch to github.com/xoctopus/concx/pkg/{nest,schedx,chanx}.
 
 
 <a name="v0.1.0"></a>

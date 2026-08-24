@@ -103,14 +103,14 @@
 
 ### 4.1 已具备
 
-| 需求                                           | 落点                     | 说明                                                                           |
-|------------------------------------------------|--------------------------|--------------------------------------------------------------------------------|
-| 树形协程派生：父子同生共死、统一取消与优雅退出 | 范式包 `nest`            | 选项：shutdown timeout、before/after close                                     |
+| 需求                                           | 落点                      | 说明                                                                           |
+|------------------------------------------------|---------------------------|--------------------------------------------------------------------------------|
+| 树形协程派生：父子同生共死、统一取消与优雅退出 | 范式包 `nest`             | 选项：shutdown timeout、before/after close                                     |
 | 任务编排（总类）                               | 范式包 `schedx.Scheduler` | Push / Run / Close                                                             |
-| 串行 + 先进先出                                | 选项或糖                 | `NewScheduler(…, WithParallel(1), WithFifo…)` → 可糖化为 `NewFifoSeqScheduler` |
-| 并行 + 先进先出                                | 选项或糖                 | `NewScheduler(…, WithParallel(n), WithFifo…)` → 可糖化为 `NewFifoScheduler`    |
-| 串行/并行 + LIFO                               | 选项或糖                 | 同上，换 `WithLifo…` / `NewLifo*`                                              |
-| （已迁入）协程间传值/多播，可取消的订阅流      | 范式包 `pkg/chanx`       | `x/chanx` 已 archived                                                          |
+| 串行 + 先进先出                                | 选项或糖                  | `NewScheduler(…, WithParallel(1), WithFifo…)` → 可糖化为 `NewFifoSeqScheduler` |
+| 并行 + 先进先出                                | 选项或糖                  | `NewScheduler(…, WithParallel(n), WithFifo…)` → 可糖化为 `NewFifoScheduler`    |
+| 串行/并行 + LIFO                               | 选项或糖                  | 同上，换 `WithLifo…` / `NewLifo*`                                              |
+| （已迁入）协程间传值/多播，可取消的订阅流      | 范式包 `pkg/chanx`        | `x/chanx` 已 archived                                                          |
 
 编排轴上「串行 / 并行 / FIFO / LIFO」都是 **同一范式的组合**，不是四个包。
 
@@ -218,13 +218,13 @@ hooks（若有）           ← 横切选项，不单立范式
 
 ## 8. 演进优先级（建议）
 
-| 优先级 | 事项                                                    |
-|--------|---------------------------------------------------------|
+| 优先级 | 事项                                                     |
+|--------|----------------------------------------------------------|
 | 当前   | 三包齐：nest / schedx / chanx；需求目录进 README / skill |
-| 高     | Future vs Actor 择一（对接薄选 Future；叙事强选 Actor） |
-| 中     | 编排增加 mode（priority / 简单 pipeline）；具名糖       |
-| 中     | 时间、失败策略先以选项长在现有包上                      |
-| 低     | 监管树升格、汇合阶段、测试假时钟 / synctest 辅助        |
+| 高     | Future vs Actor 择一（对接薄选 Future；叙事强选 Actor）  |
+| 中     | 编排增加 mode（priority / 简单 pipeline）；具名糖        |
+| 中     | 时间、失败策略先以选项长在现有包上                       |
+| 低     | 监管树升格、汇合阶段、测试假时钟 / synctest 辅助         |
 
 扩展需求目录时的检查：
 
@@ -239,6 +239,6 @@ hooks（若有）           ← 横切选项，不单立范式
 - [x] `chanx` 迁入 `concx/pkg/chanx`；`x/chanx` archived
 - [x] 模块/仓库更名为 `concx`；编排包 `pkg/schedx`（原 `pkg/schex`）
 - [ ] 下一个新范式选 Future 还是 Actor
-- [ ] Pipeline：仅 `ScheduleMode` / 拓扑选项，还是编排包内显式构造 API（仍不新立范式名）
+- [x] Pipeline：编排配方层 `pkg/orch/pipe`（显式构造 API，非新范式轴）
 - [ ] README 主叙事以需求目录还是能力轴为纲（建议： **对外需求目录，对内能力轴**）
 - [ ] 是否提供编排具名糖（`NewFifoSeqScheduler` / `NewFifoScheduler` / `NewLifo*`），以及命名与默认 pending 约定
