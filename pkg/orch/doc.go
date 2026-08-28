@@ -8,5 +8,6 @@ primitives directly; orch packages name fixed, low-friction patterns.
 Current recipes:
 
   - [github.com/xoctopus/concx/pkg/orch/pipe] — linear multi-stage pipeline
+  - [github.com/xoctopus/concx/pkg/orch/cron] — cron and periodic job orchestrator
 */
 package orch
