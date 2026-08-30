@@ -1,28 +1,10 @@
-/*
-Package pipe is an orch recipe: linear Push → node₀ → … → nodeₙ → Result.
-
-Each [Node] owns an internal [schedx.Scheduler] (ingress; default parallel=1,
-FIFO, maxPending=1) and a chanx subject (egress). Jobs on a node fan out in
-parallel for the same value (concurrency = len(jobs)); all must succeed before
-the value is forwarded. The first job error fails fast (siblings canceled) and
-does not forward.
-
-Lifecycle:
-
-	pipe.New(ctx, pipe.NewNode(...), …) → Push* → Result → Close → Done
-
-[Pipeline.Result] carries values that finished the last node successfully.
-[Pipeline.Done] closes when the pipeline is shut down (Close or parent ctx cancel).
-Callers need not use package chanx.
-
-Jobs are [schedx.Job] / [schedx.JobFunc]; this package does not re-export them.
-*/
 package pipe
 
 import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/xoctopus/x/codex"
 	"github.com/xoctopus/x/misc/must"
@@ -32,221 +14,252 @@ import (
 	"github.com/xoctopus/concx/pkg/schedx"
 )
 
-// NodeOption configures a [Node].
-type NodeOption[T any] func(*Node[T])
+type option struct {
+	shutdownTimeout time.Duration
+	maxPending      int
+	parallel        int
+}
 
-// WithJobs appends jobs to the node's fan-out group.
-// When multiple jobs are configured, they run concurrently for each value (fan-out)
-// and fail fast on the first error.
-// May be called multiple times; the final list is scheduled together.
-// len(jobs)==1 is a plain stage with no fan-out overhead.
-func WithJobs[T any](jobs ...schedx.Job[T]) NodeOption[T] {
-	return func(n *Node[T]) {
-		n.jobs = append(n.jobs, jobs...)
+var gDefaultOption = option{
+	shutdownTimeout: time.Second * 5,
+	maxPending:      10,
+	parallel:        10,
+}
+
+type OptionFunc func(*option)
+
+func WithShutdownTimeout(timeout time.Duration) OptionFunc {
+	return func(o *option) {
+		o.shutdownTimeout = timeout
 	}
 }
 
-// WithName sets a debug label; it does not affect scheduling.
-func WithName[T any](name string) NodeOption[T] {
-	return func(n *Node[T]) {
-		n.name = name
+func WithMaxPending(maxPending int) OptionFunc {
+	return func(o *option) {
+		o.maxPending = maxPending
 	}
 }
 
-// Node describes one stage: ingress via Scheduler, egress after all jobs succeed.
-// Nodes are inert until wired by [New].
-type Node[T any] struct {
-	name  string
-	jobs  []schedx.Job[T]
-	sched schedx.Scheduler[T]
-	out   *chanx.Subject[T]
+// WithParallel sets how many pipeline tickets may run concurrently
+// (RetrievableScheduler worker count). Each in-flight ticket holds a worker
+// until Tail or failure.
+func WithParallel(n int) OptionFunc {
+	return func(o *option) {
+		o.parallel = n
+	}
 }
 
-// NewNode builds a stage. At least one [WithJobs] is required.
-// Jobs on the same node run in parallel for each value; order of options
-// only affects the job list order (spawn order), not completion order.
-func NewNode[T any](opts ...NodeOption[T]) Node[T] {
-	var n Node[T]
-	for _, opt := range opts {
-		opt(&n)
-	}
-	must.BeTrueF(len(n.jobs) > 0, "pipe node requires at least one job")
-	for i, job := range n.jobs {
-		must.BeTrueF(job != nil, "pipe node job[%d] is required", i)
-	}
-	return n
+const (
+	Lifetime_Orchestrating = iota + int32(0)
+	Lifetime_Orchestrated
+	Lifetime_Building
+	Lifetime_Built
+	Lifetime_Running
+	Lifetime_Closed
+)
+
+// Scheduler is the runnable pipeline surface. Shape matches
+// [schedx.RetrievableScheduler]; runtime is RetrievableScheduler plus stage
+// pumps (nodes / finale) and chanx shutdown.
+type Scheduler[Head, Tail any] interface {
+	Push(context.Context, Head) (Result[Tail], error)
+	Pending() int
+	Close() error
+	Run(context.Context) error
 }
 
-func (n *Node[T]) run(ctx context.Context) {
-	n.out = &chanx.Subject[T]{}
-	wrapped := schedx.JobFunc[T](func(c context.Context, v T) error {
-		if err := n.boot(c, v); err != nil {
-			return err
-		}
-		n.out.Send(v)
-		return nil
+type pipeline[Head, Tail any] struct {
+	nodes   []Node
+	cancels []chanx.Cancelable
+
+	origin chanx.ValueNotifier[*flight[Head, Tail, Head]]
+	finale chanx.ValueObserver[*flight[Head, Tail, Tail]]
+
+	lifetime atomic.Int32
+	stopping atomic.Bool
+
+	*option
+
+	nest   nest.Nest
+	sche   schedx.RetrievableScheduler[Head, Tail]
+	closed chan struct{}
+
+	once  sync.Once
+	cause atomic.Value
+
+	mtx sync.Mutex
+}
+
+func (p *pipeline[Head, Tail]) drive(ctx context.Context, in Head) (Tail, error) {
+	tk := &ticket[Tail]{done: make(chan struct{})}
+	p.origin.Send(&flight[Head, Tail, Head]{
+		t: tk,
+		v: in,
 	})
-	n.sched = schedx.NewScheduler(
-		wrapped,
-		schedx.WithParallel[T](1),
-		schedx.WithFifoScheduleMode[T](),
-		schedx.WithMaxPending[T](1),
-	)
-	must.NoError(n.sched.Run(ctx))
+	return tk.wait(ctx, p.closed)
 }
 
-func (n *Node[T]) boot(ctx context.Context, v T) error {
-	if len(n.jobs) == 1 {
-		return n.jobs[0].Do(ctx, v)
+func (p *pipeline[Head, Tail]) Run(ctx context.Context) error {
+	abort := func(cause error) error {
+		// Unlock before Cancel so nest BeforeClose → shutdown cannot deadlock on mtx.
+		p.mtx.Unlock()
+		if p.nest != nil {
+			p.nest.Cancel(cause)
+			<-p.nest.Done()
+			p.nest = nil
+		}
+		return cause
 	}
 
-	g := nest.New(ctx)
-	var (
-		once sync.Once
-		fail error
-		left atomic.Int64
-	)
-	left.Store(int64(len(n.jobs)))
+	p.mtx.Lock()
 
-	for _, job := range n.jobs {
-		if err := g.Spawn(func(c context.Context) {
-			if err := job.Do(c, v); err != nil {
-				once.Do(func() {
-					fail = err
-					// Cancel must not run under Spawn: it waits on the nest WaitGroup.
-					go g.Cancel(err)
-				})
-				return
-			}
-			if left.Add(-1) == 0 {
-				go g.Cancel(nil)
+	must.BeTrue(p.lifetime.Load() == Lifetime_Built)
+	must.BeTrue(p.option != nil)
+
+	// 1. Admission: RetrievableScheduler owns Push/Pending/Result.
+	//    Job.Do = drive (inject origin, block on ticket until Tail/fail/cancel).
+	//    WithoutDetached so Close cancels in-flight drive waits via ctx.
+	p.closed = make(chan struct{})
+	p.sche = schedx.NewRetrievableScheduler(
+		schedx.RetrievableJobFunc[Head, Tail](p.drive),
+		schedx.WithRetrievableMaxPending(p.maxPending),
+		schedx.WithRetrievableParallel(p.parallel),
+		schedx.WithRetrievableFifoScheduleMode(),
+		schedx.WithRetrievableCloseTimeout(p.shutdownTimeout),
+		schedx.WithoutRetrievableDetached(),
+	)
+
+	// 2. Stage runtime nest: node pumps + finale; BeforeClose → shutdown
+	//    (sche.Close, close(closed), cancel chanx).
+	p.nest = nest.New(
+		ctx,
+		nest.WithShutdownTimeout(p.shutdownTimeout),
+		nest.WithBeforeCloseFunc(func(context.Context) {
+			_ = p.shutdown(codex.New(ERROR__PIPELINE_CANCELED))
+		}),
+	)
+
+	// 3. Boot one loop per node: pull flight → TransformJob → send next / fail ticket.
+	for _, ex := range p.nodes {
+		node := ex
+		if err := p.nest.Spawn(func(ctx context.Context) {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					if codex.IsCode(node.execute(ctx), ERROR__PIPELINE_CANCELED) {
+						return
+					}
+				}
 			}
 		}); err != nil {
-			return err
+			return abort(err)
 		}
 	}
 
-	<-g.Done()
-	if fail != nil {
-		return fail
-	}
-	return g.Err()
-}
-
-func (n *Node[T]) link(ctx context.Context, upstream chanx.Observable[T]) {
-	obs := upstream.Observe()
-	go func() {
-		go func() {
-			<-ctx.Done()
-			obs.CancelCause(ctx.Err())
-		}()
-		for v := range obs.Value() {
-			_ = n.sched.Push(ctx, v) // REACH_MAX_PENDING: drop this beat
-		}
-	}()
-}
-
-// Pipeline wires Push → node₀ → … → nodeₙ → Result.
-type Pipeline[T any] interface {
-	Push(ctx context.Context, v T) error
-	// Result receives values that finished the last node successfully.
-	// The channel is closed after the pipeline shuts down.
-	Result() <-chan T
-	// Done closes when the pipeline is shut down (Close or parent context cancel).
-	Done() <-chan struct{}
-	Close() error
-}
-
-// New builds a linear pipeline and starts all nodes under ctx.
-// Requires at least one node. Parent ctx cancel or [Pipeline.Close] stops it.
-func New[T any](ctx context.Context, nodes ...Node[T]) Pipeline[T] {
-	must.BeTrueF(len(nodes) > 0, "pipe requires at least one node")
-
-	ctx, cancel := context.WithCancel(ctx)
-	refs := make([]*Node[T], len(nodes))
-	for i := range nodes {
-		refs[i] = &nodes[i]
-		refs[i].run(ctx)
-	}
-	for i := 1; i < len(refs); i++ {
-		refs[i].link(ctx, refs[i-1].out)
-	}
-
-	p := &pipeline[T]{
-		nodes:  refs,
-		cancel: cancel,
-		done:   make(chan struct{}),
-		result: make(chan T),
-	}
-	p.bridgeResult(ctx)
-	go func() {
-		<-ctx.Done()
-		_ = p.Close()
-	}()
-	return p
-}
-
-type pipeline[T any] struct {
-	nodes []*Node[T]
-
-	mu     sync.Mutex
-	closed atomic.Bool
-	cancel context.CancelFunc
-
-	done   chan struct{}
-	result chan T
-}
-
-func (p *pipeline[T]) bridgeResult(ctx context.Context) {
-	last := p.nodes[len(p.nodes)-1]
-	obs := last.out.Observe()
-	go func() {
-		<-ctx.Done()
-		obs.CancelCause(ctx.Err())
-	}()
-	go func() {
-		defer close(p.result)
-		for v := range obs.Value() {
+	// 4. Boot finale: last-stage flights complete the ticket (unblocks drive).
+	if err := p.nest.Spawn(func(ctx context.Context) {
+		for {
 			select {
-			case p.result <- v:
 			case <-ctx.Done():
 				return
+			case f, ok := <-p.finale.Value():
+				if !ok {
+					return
+				}
+				f.t.finish(f.v, nil)
 			}
 		}
-	}()
-}
-
-func (p *pipeline[T]) Push(ctx context.Context, v T) error {
-	if p.closed.Load() {
-		return codex.New(schedx.ERROR__SCHEDULER_CANCELED)
+	}); err != nil {
+		return abort(err)
 	}
-	return p.nodes[0].sched.Push(ctx, v)
+
+	// 5. Start admission workers last so stages are ready before Push.
+	if err := p.sche.Run(ctx); err != nil {
+		return abort(err)
+	}
+
+	must.BeTrue(p.lifetime.CompareAndSwap(Lifetime_Built, Lifetime_Running))
+	p.mtx.Unlock()
+	return nil
 }
 
-func (p *pipeline[T]) Result() <-chan T {
-	return p.result
+func (p *pipeline[Head, Tail]) shutdown(reason error) error {
+	p.once.Do(func() {
+		if reason == nil {
+			reason = codex.New(ERROR__PIPELINE_CANCELED)
+		}
+		p.cause.Store(reason)
+		p.lifetime.Store(Lifetime_Closed)
+
+		// Wake drive/ticket.wait with PIPELINE_CANCELED and stop stage pumps
+		// before sche.Close, so in-flight finish can record the pipe error
+		// (Retrievable finish would overwrite once its closed is signaled).
+		if p.closed != nil {
+			select {
+			case <-p.closed:
+			default:
+				close(p.closed)
+			}
+		}
+		for _, c := range p.cancels {
+			c.CancelCause(reason)
+		}
+		if p.sche != nil {
+			_ = p.sche.Close()
+		}
+	})
+	if v := p.cause.Load(); v != nil {
+		return v.(error)
+	}
+	return reason
 }
 
-func (p *pipeline[T]) Done() <-chan struct{} {
-	return p.done
-}
-
-func (p *pipeline[T]) Close() error {
-	if !p.closed.CompareAndSwap(false, true) {
+func (p *pipeline[Head, Tail]) Close() error {
+	if !p.stopping.CompareAndSwap(false, true) {
 		return nil
 	}
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.cancel != nil {
-		p.cancel()
-		p.cancel = nil
+	err := p.shutdown(codex.New(ERROR__PIPELINE_CANCELED))
+	if p.nest != nil {
+		p.nest.Cancel(err)
+		joined := p.nest.Err()
+		if codex.IsCode(joined, nest.ERROR__NEST_CLOSE_TIMEOUT) {
+			return joined
+		}
 	}
-	for _, n := range p.nodes {
-		n.out.CancelCause(nil)
-		_ = n.sched.Close()
-	}
-	close(p.done)
 	return nil
+}
+
+func (p *pipeline[Head, Tail]) Push(ctx context.Context, in Head) (Result[Tail], error) {
+	if p.lifetime.Load() == Lifetime_Closed || p.stopping.Load() ||
+		(p.nest != nil && p.nest.Canceled()) {
+		return nil, codex.New(ERROR__PIPELINE_CANCELED)
+	}
+	if p.lifetime.Load() != Lifetime_Running || p.sche == nil {
+		return nil, codex.New(ERROR__PIPELINE_NOT_RUNNING)
+	}
+
+	ret, err := p.sche.Push(ctx, in)
+	if err == nil {
+		return ret, nil
+	}
+	switch {
+	case codex.IsCode(err, schedx.ERROR__SCHEDULER_NOT_RUNNING):
+		return nil, codex.New(ERROR__PIPELINE_NOT_RUNNING)
+	case codex.IsCode(err, schedx.ERROR__REACH_MAX_PENDING):
+		return nil, codex.New(ERROR__REACH_MAX_PENDING)
+	case codex.IsCode(err, schedx.ERROR__SCHEDULER_CANCELED):
+		return nil, codex.New(ERROR__PIPELINE_CANCELED)
+	default:
+		return nil, codex.Wrap(ERROR_UNDEFINED, err)
+	}
+}
+
+func (p *pipeline[Head, Tail]) Pending() int {
+	if p.sche == nil {
+		return 0
+	}
+	return p.sche.Pending()
 }

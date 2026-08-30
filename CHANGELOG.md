@@ -1,8 +1,23 @@
 
 <a name="HEAD"></a>
-## [HEAD](https://github.com/xoctopus/concx/compare/v0.2.0...HEAD)
+## [HEAD](https://github.com/xoctopus/concx/compare/v0.2.1...HEAD)
 
-> 0001-01-01
+> 2026-08-31
+
+### Feat
+
+* **orch:** add pipe and cron orch
+* **schedx:** add RetrievableScheduler with per-Push Result
+
+
+<a name="v0.2.1"></a>
+## [v0.2.1](https://github.com/xoctopus/concx/compare/v0.2.0...v0.2.1)
+
+> 2026-08-24
+
+### Feat
+
+* **orch:** introduce pipe recipe for linear pipeline orchestration
 
 
 <a name="v0.2.0"></a>
