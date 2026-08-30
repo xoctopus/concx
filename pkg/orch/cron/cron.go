@@ -2,38 +2,16 @@ package cron
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	robfig "github.com/robfig/cron/v3"
 	"github.com/xoctopus/x/codex"
 	"github.com/xoctopus/x/misc/must"
 
 	"github.com/xoctopus/concx/pkg/nest"
 	"github.com/xoctopus/concx/pkg/schedx"
 )
-
-// Schedule calculates the next execution time given the current time.
-// It is compatible with robfig/cron/v3.Schedule.
-type Schedule interface {
-	Next(time.Time) time.Time
-}
-
-// Every returns a Schedule that repeats after a constant duration.
-// Unlike robfig/cron, it supports arbitrary precision including sub-second durations.
-func Every(duration time.Duration) Schedule {
-	return every{du: duration}
-}
-
-type every struct {
-	du time.Duration
-}
-
-func (s every) Next(t time.Time) time.Time {
-	return t.Add(s.du)
-}
 
 // Cron is an orchestrator recipe for a single recurring scheduled job.
 type Cron interface {
@@ -68,17 +46,6 @@ func NewWithSchedule(ctx context.Context, schedule Schedule, job schedx.Job[time
 	return newCron(ctx, schedule, job, cfg)
 }
 
-func parseSchedule(spec string, parser robfig.ScheduleParser) (Schedule, error) {
-	if after, ok := strings.CutPrefix(spec, "@every "); ok {
-		d, err := time.ParseDuration(strings.TrimSpace(after))
-		if err != nil {
-			return nil, err
-		}
-		return Every(d), nil
-	}
-	return parser.Parse(spec)
-}
-
 func defaultOption() option {
 	return option{
 		loc:             time.Local,
@@ -86,9 +53,7 @@ func defaultOption() option {
 		parallel:        1,
 		maxPending:      1,
 		overlap:         OverlapSkip,
-		parser: robfig.NewParser(
-			robfig.SecondOptional | robfig.Minute | robfig.Hour | robfig.Dom | robfig.Month | robfig.Dow | robfig.Descriptor,
-		),
+		parser:          gDefaultParser,
 	}
 }
 
@@ -201,8 +166,7 @@ func (c *cronImpl) loop(ctx context.Context) {
 			timer.Stop()
 			return
 
-		case t := <-timer.C:
-			t = t.In(c.loc)
+		case <-timer.C:
 			c.trigger(ctx, next)
 		}
 	}
