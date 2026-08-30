@@ -9,6 +9,10 @@
 * **orch:** add pipe and cron orch
 * **schedx:** add RetrievableScheduler with per-Push Result
 
+### Test
+
+* fix unit testing
+
 
 <a name="v0.2.1"></a>
 ## [v0.2.1](https://github.com/xoctopus/concx/compare/v0.2.0...v0.2.1)
