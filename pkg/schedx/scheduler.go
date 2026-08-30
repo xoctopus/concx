@@ -14,18 +14,15 @@ import (
 	"github.com/xoctopus/concx/pkg/nest"
 )
 
-func NewScheduler[T any](fn Job[T], appliers ...SchedulerOptionApplier[T]) Scheduler[T] {
-	must.BeTrueF(fn != nil, "job handler is required")
+func NewScheduler[T any](f Job[T], appliers ...SchedulerOptionApplier[T]) Scheduler[T] {
+	must.BeTrueF(f != nil, "job handler is required")
+
 	s := &scheduler[T]{
-		option: option[T]{
-			maxPending:   1,
-			parallel:     1,
-			mode:         FIFO,
-			closeTimeout: 3 * time.Second,
-		},
-		fn:   fn,
+		fn:   f,
 		cond: sync.NewCond(&sync.Mutex{}),
 	}
+	s.option.SetDefault()
+
 	for _, applier := range appliers {
 		applier(&s.option)
 	}
@@ -67,6 +64,9 @@ type scheduler[T any] struct {
 }
 
 func (s *scheduler[T]) Push(_ context.Context, v T) error {
+	if !s.running.Load() {
+		return codex.New(ERROR__SCHEDULER_NOT_RUNNING)
+	}
 	if s.nest != nil && s.nest.Canceled() {
 		return codex.New(ERROR__SCHEDULER_CANCELED)
 	}
@@ -89,7 +89,6 @@ func (s *scheduler[T]) Push(_ context.Context, v T) error {
 Append:
 	s.tasks.Push(v)
 	s.cond.Broadcast()
-	// s.cond.Signal()
 	return nil
 }
 
@@ -116,7 +115,7 @@ func (s *scheduler[T]) Run(ctx context.Context) (err error) {
 		nest.WithAfterCloseFunc(func(cause error) error {
 			if s.exitCbCalled.CompareAndSwap(false, true) {
 				if s.scheExitCallback != nil {
-					s.scheExitCallback(cause)
+					s.scheExitCallback(wrapCanceled(cause))
 				}
 			}
 			return nil

@@ -6,7 +6,7 @@
 
 ## 职责
 
-`Nest` 是受管控、可派生的 goroutine 生命周期边界:
+`Nest` 是受管控, 可派生的 goroutine 生命周期边界:
 
 - 用 `sync.WaitGroup` 跟踪 `Spawn` 出的 goroutine
 - 统一生命周期: parent 取消或主动 `Cancel`
@@ -21,7 +21,7 @@
 | `Parent()`   | 构造时传入的 inherited ctx (元数据 / 外部信号) |
 | `Children()` | 内部 `WithCancelCause` 得到的 dispatched ctx   |
 
-`Spawn` 的 worker 收到的是 **dispatched** ctx.  
+`Spawn` 的 worker 收到的是 **dispatched** ctx.
 inherited 或 dispatched 任一 Done, 都会触发内部 `Cancel`.
 
 ## 生命周期
@@ -73,8 +73,8 @@ err := n.Err()
 
 ## 与 schedx
 
-`pkg/schedx.Scheduler` 在 `Run` 里创建 Nest 托管 worker loop.  
-需要队列 / pending / Job 回调时用 schedx; 只要「一组受管 goroutine」时直接用本包.
+`pkg/schedx.Scheduler` 在 `Run` 里创建 Nest 托管 worker loop.
+需要队列 / pending / Job 回调时用 schedx; 只要"一组受管 goroutine"时直接用本包.
 
 详见 [schedx-howto-guideline.md](schedx-howto-guideline.md).
 

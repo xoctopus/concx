@@ -8,16 +8,18 @@ import (
 func (e Error) Message() string {
 	switch e {
 	default:
-		return fmt.Sprintf("[SCHEDX::ERROR:%d] unknown", e)
+		return fmt.Sprintf("[SCHED:%d] unknown", e)
 	case ERROR_UNDEFINED:
-		return "[SCHEDX::ERROR:0] undefined"
+		return "[SCHED:0] undefined"
 	case ERROR__REACH_MAX_PENDING:
-		return "[SCHEDX::ERROR:1] reached max pending limitation"
+		return "[SCHED:1] reached max pending limitation"
+	case ERROR__SCHEDULER_NOT_RUNNING:
+		return "[SCHED:2] Push before Run"
 	case ERROR__SCHEDULER_RERUN:
-		return "[SCHEDX::ERROR:2] scheduler is already running"
+		return "[SCHED:3] scheduler is already running"
 	case ERROR__SCHEDULER_CANCELED:
-		return "[SCHEDX::ERROR:3] scheduler is manual canceled"
+		return "[SCHED:4] scheduler is canceled (Close or parent ctx)"
 	case ERROR__SCHEDULER_JOB_PANICKED:
-		return "[SCHEDX::ERROR:4] scheduler job panicked"
+		return "[SCHED:5] scheduler job panicked"
 	}
 }

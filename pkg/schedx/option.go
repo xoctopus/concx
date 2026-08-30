@@ -25,6 +25,18 @@ type option[T any] struct {
 	mode             ScheduleMode
 }
 
+func (o *option[T]) SetDefault() {
+	if o.maxPending == 0 {
+		o.maxPending = 1
+	}
+	if o.parallel == 0 {
+		o.parallel = 1
+	}
+	if o.closeTimeout == 0 {
+		o.closeTimeout = 3 * time.Second
+	}
+}
+
 type SchedulerOptionApplier[T any] func(*option[T])
 
 // WithMaxPending sets the maximum number of pending tasks allowed.
@@ -96,5 +108,69 @@ func WithCloseTimeout[T any](du time.Duration) SchedulerOptionApplier[T] {
 func WithoutDetached[T any]() SchedulerOptionApplier[T] {
 	return func(o *option[T]) {
 		o.disableDetached = true
+	}
+}
+
+type retrievableOption struct {
+	maxPending      int
+	parallel        int
+	closeTimeout    time.Duration
+	disableDetached bool
+	mode            ScheduleMode
+}
+
+func (o *retrievableOption) SetDefault() {
+	if o.maxPending == 0 {
+		o.maxPending = 1
+	}
+	if o.parallel == 0 {
+		o.parallel = 1
+	}
+	if o.closeTimeout == 0 {
+		o.closeTimeout = 3 * time.Second
+	}
+}
+
+type RetrievableSchedulerApplier func(*retrievableOption)
+
+func WithRetrievableMaxPending(n int) RetrievableSchedulerApplier {
+	return func(r *retrievableOption) {
+		r.maxPending = n
+	}
+}
+
+func WithoutRetrievablePendingLimitation() RetrievableSchedulerApplier {
+	return func(r *retrievableOption) {
+		r.maxPending = -1
+	}
+}
+
+func WithRetrievableParallel(n int) RetrievableSchedulerApplier {
+	return func(r *retrievableOption) {
+		r.parallel = min(n, MaxParallel)
+	}
+}
+
+func WithRetrievableFifoScheduleMode() RetrievableSchedulerApplier {
+	return func(r *retrievableOption) {
+		r.mode = FIFO
+	}
+}
+
+func WithRetrievableLifoScheduleMode() RetrievableSchedulerApplier {
+	return func(r *retrievableOption) {
+		r.mode = LIFO
+	}
+}
+
+func WithRetrievableCloseTimeout(d time.Duration) RetrievableSchedulerApplier {
+	return func(r *retrievableOption) {
+		r.closeTimeout = d
+	}
+}
+
+func WithoutRetrievableDetached() RetrievableSchedulerApplier {
+	return func(r *retrievableOption) {
+		r.disableDetached = true
 	}
 }

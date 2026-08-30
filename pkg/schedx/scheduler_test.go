@@ -130,6 +130,7 @@ func TestScheduler(t *testing.T) {
 	)
 	ctx := t.Context()
 
+	Expect(t, s.Push(ctx, 1), IsCodeError(schedx.ERROR__SCHEDULER_NOT_RUNNING))
 	Expect(t, s.Run(ctx), Succeed())
 	Expect(t, s.Push(ctx, 2), Succeed())
 	Expect(t, s.Push(ctx, 1), Succeed())
@@ -156,11 +157,11 @@ func TestScheduler(t *testing.T) {
 		schedx.WithMaxPending[int](2),
 	)
 	ctx = context.Background()
+	Expect(t, s.Run(ctx), Succeed())
 	Expect(t, s.Push(ctx, 1), Succeed())
 	Expect(t, s.Push(ctx, 2), Succeed())
 	Expect(t, s.Push(ctx, 3), IsCodeError(schedx.ERROR__REACH_MAX_PENDING))
 
-	Expect(t, s.Run(ctx), Succeed())
 	Expect(t, s.Run(ctx), IsCodeError(schedx.ERROR__SCHEDULER_RERUN))
 	time.Sleep(2 * time.Second)
 

@@ -35,3 +35,24 @@ const (
 	FIFO ScheduleMode = iota
 	LIFO
 )
+
+type RetrievableJob[In, Out any] interface {
+	Do(context.Context, In) (Out, error)
+}
+
+type RetrievableJobFunc[In, Out any] func(context.Context, In) (Out, error)
+
+func (f RetrievableJobFunc[In, Out]) Do(ctx context.Context, in In) (Out, error) {
+	return f(ctx, in)
+}
+
+type Result[Out any] interface {
+	Result(context.Context) (Out, error)
+}
+
+type RetrievableScheduler[In, Out any] interface {
+	Push(context.Context, In) (Result[Out], error)
+	Run(context.Context) error
+	Pending() int
+	Close() error
+}
