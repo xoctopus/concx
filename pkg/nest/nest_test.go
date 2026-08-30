@@ -127,9 +127,9 @@ func ExampleNest() {
 	//
 	// ==> nest close timeout
 	// Before done
-	// After: [nest.Error:2] NEST_CLOSE_TIMEOUT
+	// After: [NEST::ERROR:2] NEST_CLOSE_TIMEOUT
 	// cause
-	// Closed: [nest.Error:2] NEST_CLOSE_TIMEOUT
+	// Closed: [NEST::ERROR:2] NEST_CLOSE_TIMEOUT
 	// cause
 	//
 	// Worker 1 finished task
@@ -137,9 +137,9 @@ func ExampleNest() {
 	// Worker 3 finished task
 	// ==> shutdown triggered by outside nest.Cancel
 	// Before done
-	// After: [nest.Error:2] NEST_CLOSE_TIMEOUT
+	// After: [NEST::ERROR:2] NEST_CLOSE_TIMEOUT
 	// outside
-	// Closed: [nest.Error:2] NEST_CLOSE_TIMEOUT
+	// Closed: [NEST::ERROR:2] NEST_CLOSE_TIMEOUT
 	// outside
 	//
 	// Worker 1 finished task
