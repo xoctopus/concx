@@ -1,8 +1,6 @@
 package piper
 
-type (
-	Operator[I, O any] func(I) O
-)
+type Operator[I, O any] func(I) O
 
 func Exec[Head, Tail any](
 	v Head,
