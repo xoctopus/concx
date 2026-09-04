@@ -1,16 +1,21 @@
 ---
 name: concx
-description:
-  - 说明如何用 `github.com/xoctopus/concx` 做受约束并发(生命周期 / 编排 / 通信 / 配方)
-  - Nest: Spawn / Cancel / 统一生命周期
-  - Scheduler: 入队 / 并发执行 / pending 限制 / 安全退出(fire-and-forget)
-  - RetrievableScheduler: Push 返回 Result, Close 立刻解锁未完成 Result
-  - chanx: Observer / Subject / 可取消值流
-  - orch/pipe: 线性多阶段配方 (Build → Run → Push → Result[Tail])
-  - 当需要在宿主项目接入 concx, 选型三包或 orch 配方, 或排查关闭/超限错误时使用
+description: >-
+  说明如何用 `github.com/xoctopus/concx` 做受约束并发: 生命周期(nest) / 编排(schedx) / 通信(chanx) / 配方(orch).
+  当需要在宿主项目接入 concx, 选型 nest / schedx / chanx 或 orch 配方, 或排查关闭/超限错误时使用.
 ---
 
 # concx
+
+## 包地图
+
+| 包                                | 职责                                                         |
+|-----------------------------------|--------------------------------------------------------------|
+| `pkg/nest`                        | 树形协程派生与统一生命周期: Spawn / Cancel / Done            |
+| `pkg/schedx.Scheduler`            | 任务入队 + 并发执行; pending 限制; 安全退出(fire-and-forget) |
+| `pkg/schedx.RetrievableScheduler` | 同上, 但每次 Push 返回 `Result`; Close 立刻解锁未完成 Result |
+| `pkg/chanx`                       | 协程间通信: Observer / Subject / 可取消值流                  |
+| `pkg/orch/pipe`                   | 线性多阶段配方: Build → Run → Push → Result[Tail]            |
 
 - 选型与 Scheduler: [references/schedx-howto-guideline.md](references/schedx-howto-guideline.md)
 - Nest 生命周期: [references/nest-howto-guideline.md](references/nest-howto-guideline.md)
