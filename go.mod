@@ -1,6 +1,6 @@
 module github.com/xoctopus/concx
 
-go 1.27
+go 1.27.0
 
 tool github.com/xoctopus/concx/internal/cmd/gen
 
@@ -9,7 +9,7 @@ require (
 	// +skill:genx
 	github.com/xoctopus/genx v0.3.7
 	// +skill:testx
-	github.com/xoctopus/x v0.5.7
+	github.com/xoctopus/x v0.5.9
 )
 
 require (
