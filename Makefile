@@ -1,15 +1,13 @@
 
 # go package info
-MODULE_PATH    := $(shell cat go.mod | grep ^module -m 1 | awk '{ print $$2; }' || '')
-MODULE_NAME    := $(shell basename $(MODULE_PATH))
-TEST_IGNORES   := "_gen.go|.pb.go|_mock.go|_genx_|main.go|testing.go|example/|testutil/|testdata/|hack/|vendor/"
-FORMAT_IGNORES := ".git/,.xgo/,*.pb.go,*_genx_*,*_gen.go,*_mock.go,vendor/"
 
 # git repository info
+META_TZ := Asia/Shanghai
+MODULE_PATH := $(shell cat go.mod | grep ^module -m 1 | awk '{ print $$2; }' || '')
 IS_GIT_REPO := $(shell git rev-parse --is-inside-work-tree >/dev/null 2>&1 && echo 1 || echo 0)
 ifeq ($(IS_GIT_REPO),1)
 export GIT_COMMIT_RAW := $(shell git rev-parse --short HEAD 2>/dev/null || echo "")
-export GIT_COMMIT_AT  := $(shell git log -1 --format=%cd --date=format:%Y%m%d%H%M%S 2>/dev/null || echo "")
+export GIT_COMMIT_AT  := $(shell TZ=$(META_TZ) git log -1 --format=%cd --date=format:%Y%m%d%H%M%SCST 2>/dev/null || echo "")
 export GIT_TAG        := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
 export GIT_BRANCH     := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 ifeq ($(shell git status --porcelain 2>/dev/null),)
@@ -23,16 +21,22 @@ export GIT_COMMIT_AT := ""
 export GIT_TAG       := v0.0.0
 export GIT_BRANCH    := ""
 endif
-export BUILD_AT := $(shell date "+%Y%m%d%H%M%S")
+export BUILD_AT := $(shell TZ=$(META_TZ) date "+%Y%m%d%H%M%SCST")
 export MODULE_PATH
+
+MODULE_NAME    := $(shell basename $(MODULE_PATH))
+TEST_IGNORES   := "_gen.go|.pb.go|_mock.go|_genx_|main.go|testing.go|example/|testutil/|testdata/|hack/|vendor/"
+FORMAT_IGNORES := ".git/,.xgo/,*.pb.go,*_genx_*,*_gen.go,*_mock.go,vendor/"
 
 # global env variables
 GOWORK ?= off
 export GOWORK
 
-# use vendor when the module is vendored
 ifneq ($(wildcard vendor/modules.txt),)
 export GOFLAGS := $(GOFLAGS) -mod=vendor
+GO_INSTALL := GOFLAGS=-mod=mod go install
+else
+GO_INSTALL := go install
 endif
 
 # go build tools
@@ -71,38 +75,38 @@ dep:
 	@echo "==> installing dependencies"
 	@if [ "${DEP_DEVGEN}" != "0" ]; then \
 		echo "	devgen for dev configuration generating"; \
-		go install github.com/xoctopus/devx/cmd/devgen@main; \
+		$(GO_INSTALL) github.com/xoctopus/devx/cmd/devgen@main; \
 		echo "	DONE."; \
 	fi
 	@if [ "${DEP_GIT_CHGLOG}" != "0" ]; then \
 		echo "	git-chglog for generating changelog"; \
-		go install github.com/git-chglog/git-chglog/cmd/git-chglog@latest; \
+		$(GO_INSTALL) github.com/git-chglog/git-chglog/cmd/git-chglog@latest; \
 		echo "	DONE."; \
 	fi
 	@if [ "${DEP_GOIMPORTS_REVISER}" != "0" ]; then \
 		echo "	goimports-reviser for code formating"; \
-		go install github.com/incu6us/goimports-reviser/v3@latest; \
+		$(GO_INSTALL) github.com/incu6us/goimports-reviser/v3@latest; \
 		echo "	DONE."; \
 	fi
 	@if [ "${DEP_GOLANGCI_LINT}" != "0" ]; then \
 		echo "	golangci-lint for code linting"; \
-		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest; \
+		$(GO_INSTALL) github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest; \
 		echo "	DONE."; \
 	fi
 
 upgrade-dep:
 	@echo "==> upgrading dependencies"
 	@echo "	devgen for dev configuration generating"
-	@go install github.com/xoctopus/devx/cmd/devgen@main
+	@$(GO_INSTALL) github.com/xoctopus/devx/cmd/devgen@main
 	@echo "	DONE."
 	@echo "	git-chglog for generating changelog"
-	@go install github.com/git-chglog/git-chglog/cmd/git-chglog@latest
+	@$(GO_INSTALL) github.com/git-chglog/git-chglog/cmd/git-chglog@latest
 	@echo "	DONE."
 	@echo "	goimports-reviser for code formating"
-	@go install github.com/incu6us/goimports-reviser/v3@latest
+	@$(GO_INSTALL) github.com/incu6us/goimports-reviser/v3@latest
 	@echo "	DONE."
 	@echo "	golangci-lint for code linting"
-	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+	@$(GO_INSTALL) github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 	@echo "	DONE."
 
 tidy:

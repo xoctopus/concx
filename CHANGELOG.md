@@ -1,8 +1,36 @@
 
 <a name="HEAD"></a>
-## [HEAD](https://github.com/xoctopus/concx/compare/v0.2.1...HEAD)
+## [HEAD](https://github.com/xoctopus/concx/compare/v0.2.3...HEAD)
+
+> 2026-10-07
+
+### Chore
+
+* **deps:** bump github.com/xoctopus/x from 0.5.7 to 0.5.9
+
+
+<a name="v0.2.3"></a>
+## [v0.2.3](https://github.com/xoctopus/concx/compare/v0.2.2...v0.2.3)
+
+> 2026-09-05
+
+### Docs
+
+* **skills:** fix concx SKILL.md frontmatter and add package map
+
+### Test
+
+* **piper:** add unit test
+
+
+<a name="v0.2.2"></a>
+## [v0.2.2](https://github.com/xoctopus/concx/compare/v0.2.1...v0.2.2)
 
 > 2026-08-31
+
+### Docs
+
+* update CHANGELOG
 
 ### Feat
 
