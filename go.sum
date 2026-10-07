@@ -10,8 +10,8 @@ github.com/xoctopus/pkgx/testdata v1.0.4 h1:lbybNEnGMbnS43BuowOy4PoDD/c+5qfw1gb5
 github.com/xoctopus/pkgx/testdata v1.0.4/go.mod h1:hM3Pd+eByHRAG1plTMLXVBFzEdYqG3h7B5sHvOu2+iU=
 github.com/xoctopus/typx v0.4.6 h1:TYdjCDCL+CEKpE/G/0BEonYAnpP9/ePmQijN9yOkhvA=
 github.com/xoctopus/typx v0.4.6/go.mod h1:QTWPu3u8Rl3qNsDv+qhzax5rRmLV+J1om7Pkt+Pnxi0=
-github.com/xoctopus/x v0.5.7 h1:4G5VxOpg6ZgqYU2vSPGRMY3PsIuTeNiQus9JuNRQAzE=
-github.com/xoctopus/x v0.5.7/go.mod h1:jSApSot3xHATyXYFNi0qRQTLRsW8BwyHpAOd/K/weNk=
+github.com/xoctopus/x v0.5.9 h1:quXfFKjO6GCp4/AUvh1d93To0YuSH3EUPyXJyyMlxCY=
+github.com/xoctopus/x v0.5.9/go.mod h1:lFgGXQGELYsGXSaiQBQTpJxXe0THG/72KT+heflzTtU=
 golang.org/x/mod v0.38.0 h1:MECBjubtXD7yj4HrhIUcywNaGeNVUdfVnxmPajOk4yk=
 golang.org/x/mod v0.38.0/go.mod h1:V6Xz0pq8TQ3dGqVQ1FVHuelZpAL0uNhSkk9ogYP3c40=
 golang.org/x/sync v0.22.0 h1:SZjpbeLmrCk4xhRSZFNZW5gFUeCeFgjekvI/+gfScek=
