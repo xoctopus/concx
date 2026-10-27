@@ -17,10 +17,13 @@ linters:
     - ineffassign
     - gocyclo
     - govet
+    - modernize
   settings:
     staticcheck:
       checks:
         - all
+        # the following static check will be ignored
+        # more detail see `staticcheck -explain xxx`
         - -QF1001
         - -QF1004
         - -QF1006
@@ -29,6 +32,7 @@ linters:
         - -ST1000
         - -ST1001
         - -ST1003
+        - -ST1020
         - -ST1021
         - -SA5008
     gocyclo:

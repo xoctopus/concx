@@ -2,10 +2,12 @@
 <a name="HEAD"></a>
 ## [HEAD](https://github.com/xoctopus/concx/compare/v0.2.3...HEAD)
 
-> 2026-10-07
+> 2026-10-23
 
 ### Chore
 
+* update Makefile and CHANGELOG
+* **deps:** upgrade go 1.27 -> 1.27.3
 * **deps:** bump github.com/xoctopus/x from 0.5.7 to 0.5.9
 
 
