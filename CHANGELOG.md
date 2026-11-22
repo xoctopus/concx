@@ -1,14 +1,25 @@
 
 <a name="HEAD"></a>
-## [HEAD](https://github.com/xoctopus/concx/compare/v0.2.3...HEAD)
+## [HEAD](https://github.com/xoctopus/concx/compare/v0.2.4...HEAD)
 
-> 2026-10-23
+> 0001-01-01
+
+
+<a name="v0.2.4"></a>
+## [v0.2.4](https://github.com/xoctopus/concx/compare/v0.2.3...v0.2.4)
+
+> 2026-11-23
 
 ### Chore
 
 * update Makefile and CHANGELOG
 * **deps:** upgrade go 1.27 -> 1.27.3
 * **deps:** bump github.com/xoctopus/x from 0.5.7 to 0.5.9
+* **lint:** enable modernize and ignore ST1020
+
+### Fix
+
+* **nest:** avoid deadlock between Cancel and nested Spawn
 
 
 <a name="v0.2.3"></a>
