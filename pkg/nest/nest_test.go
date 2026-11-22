@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -173,4 +174,92 @@ func TestNewNest(t *testing.T) {
 	<-n.Done()
 	Expect(t, n.Canceled(), BeTrue())
 	Expect(t, n.Spawn(func(ctx context.Context) {}), IsCodeError(ERROR__NEST_CLOSED))
+}
+
+// WaitOrFail fails the test instead of hanging when fn does not return in time.
+func WaitOrFail(t *testing.T, name string, fn func()) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		fn()
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("%s: deadlock, did not finish within 5s", name)
+	}
+}
+
+func TestNestSpawnFromRunningWorkerDuringCancel(t *testing.T) {
+	n := New(context.Background())
+
+	var spawnErr = make(chan error, 1)
+	started := make(chan struct{})
+	must.NoError(n.Spawn(func(ctx context.Context) {
+		close(started)
+		<-ctx.Done()
+		// a goroutine already inside the nest spawns again while Cancel is waiting for it
+		spawnErr <- n.Spawn(func(context.Context) {})
+	}))
+	<-started
+
+	WaitOrFail(t, "Cancel with nested Spawn", func() {
+		n.Cancel(nil)
+	})
+	Expect(t, <-spawnErr, IsCodeError(ERROR__NEST_CLOSED))
+}
+
+func TestNestSpawnFromBeforeCloseFunc(t *testing.T) {
+	var n Nest
+	hookErr := make(chan error, 1)
+	n = New(context.Background(), WithBeforeCloseFunc(func(context.Context) {
+		// Spawn from the before-close hook runs inside Cancel and must not deadlock on mu
+		hookErr <- n.Spawn(func(context.Context) {})
+	}))
+	WaitOrFail(t, "Cancel with Spawn in beforeCloseFunc", func() {
+		n.Cancel(nil)
+	})
+	Expect(t, <-hookErr, IsCodeError(ERROR__NEST_CLOSED))
+}
+
+func TestNestErrDoesNotBlockBeforeCancel(t *testing.T) {
+	n := New(context.Background())
+
+	WaitOrFail(t, "Err before Cancel", func() {
+		if err := n.Err(); err != nil {
+			t.Errorf("Err before Cancel = %v, want nil", err)
+		}
+	})
+
+	n.Cancel(errors.New("cause"))
+	WaitOrFail(t, "Err after Cancel", func() {
+		if err := n.Err(); err == nil {
+			t.Errorf("Err after Cancel = nil, want non-nil")
+		}
+	})
+}
+
+func TestNestConcurrentCancel(t *testing.T) {
+	n := New(context.Background())
+	must.NoError(n.Spawn(func(ctx context.Context) {
+		<-ctx.Done()
+		time.Sleep(unit)
+	}))
+
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			n.Cancel(nil)
+		}()
+	}
+	WaitOrFail(t, "concurrent Cancel", wg.Wait)
+
+	select {
+	case <-n.Done():
+	default:
+		t.Fatal("Done not closed after Cancel returned")
+	}
 }

@@ -78,8 +78,12 @@ func (x *nest) Done() <-chan struct{} {
 }
 
 func (x *nest) Err() error {
-	<-x.Done()
-	return x.err
+	select {
+	case <-x.done:
+		return x.err
+	default:
+		return nil
+	}
 }
 
 func (x *nest) Value(key any) any {
@@ -102,48 +106,57 @@ func (x *nest) Canceled() bool {
 	return x.canceled.Load()
 }
 
+// Cancel shuts the nest down and waits for its goroutines to exit.
+// mu is held only to flip canceled, so Spawn calls from inside a running
+// goroutine can always acquire it and observe the closed state. Waiting
+// happens without mu held. Concurrent callers wait for the first one to finish.
 func (x *nest) Cancel(cause error) {
 	x.mu.Lock()
-	defer x.mu.Unlock()
-	if x.canceled.CompareAndSwap(false, true) {
-		ctx, cancel := context.WithCancel(context.Background())
-		if x.shutdownTimeout > 0 {
-			ctx, cancel = context.WithTimeout(ctx, x.shutdownTimeout)
+	if !x.canceled.CompareAndSwap(false, true) {
+		x.mu.Unlock()
+		<-x.done
+		return
+	}
+	// canceled is set under mu, so no Spawn can call wg.Add after this point.
+	x.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	if x.shutdownTimeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, x.shutdownTimeout)
+	}
+	var err error
+	defer func() {
+		cancel()
+		x.err = errors.Join(err, cause)
+		if x.afterCloseFunc != nil {
+			x.err = errors.Join(x.err, x.afterCloseFunc(x.err))
 		}
-		var err error
-		defer func() {
-			cancel()
-			x.err = errors.Join(err, cause)
-			if x.afterCloseFunc != nil {
-				x.err = errors.Join(x.err, x.afterCloseFunc(x.err))
-			}
-			close(x.done)
+		close(x.done)
+	}()
+
+	if x.beforeCloseFunc != nil {
+		x.beforeCloseFunc(ctx)
+	}
+
+	x.cancel(cause)
+
+	if x.shutdownTimeout > 0 {
+		sig := make(chan struct{})
+
+		go func() {
+			x.wg.Wait()
+			close(sig)
 		}()
 
-		if x.beforeCloseFunc != nil {
-			x.beforeCloseFunc(ctx)
+		select {
+		case <-sig:
+			return
+		case <-time.After(x.shutdownTimeout):
+			err = codex.New(ERROR__NEST_CLOSE_TIMEOUT)
+			return
 		}
-
-		x.cancel(cause)
-
-		if x.shutdownTimeout > 0 {
-			sig := make(chan struct{})
-
-			go func() {
-				x.wg.Wait()
-				close(sig)
-			}()
-
-			select {
-			case <-sig:
-				return
-			case <-time.After(x.shutdownTimeout):
-				err = codex.New(ERROR__NEST_CLOSE_TIMEOUT)
-				return
-			}
-		}
-		x.wg.Wait()
 	}
+	x.wg.Wait()
 }
 
 type option struct {
