@@ -2,7 +2,15 @@
 <a name="HEAD"></a>
 ## [HEAD](https://github.com/xoctopus/concx/compare/v0.2.4...HEAD)
 
-> 0001-01-01
+> 2026-11-23
+
+### Docs
+
+* update CHANGELOG
+
+### Feat
+
+* **nest:** register child nests with ancestor by default
 
 
 <a name="v0.2.4"></a>

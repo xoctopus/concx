@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -249,11 +251,9 @@ func TestNestConcurrentCancel(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for range 4 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			n.Cancel(nil)
-		}()
+		})
 	}
 	WaitOrFail(t, "concurrent Cancel", wg.Wait)
 
@@ -261,5 +261,103 @@ func TestNestConcurrentCancel(t *testing.T) {
 	case <-n.Done():
 	default:
 		t.Fatal("Done not closed after Cancel returned")
+	}
+}
+
+func TestNestParentWaitsForChild(t *testing.T) {
+	parent := New(context.Background())
+	child := New(parent.Children())
+
+	var finished atomic.Bool
+	must.NoError(child.Spawn(func(ctx context.Context) {
+		<-ctx.Done()
+		time.Sleep(unit)
+		finished.Store(true)
+	}))
+
+	WaitOrFail(t, "parent Cancel", func() { parent.Cancel(nil) })
+	Expect(t, finished.Load(), BeTrue())
+	Expect(t, child.Canceled(), BeTrue())
+}
+
+func TestNestGrandchildChain(t *testing.T) {
+	root := New(context.Background())
+	mid := New(root.Children())
+	leaf := New(mid.Children())
+
+	var finished atomic.Bool
+	must.NoError(leaf.Spawn(func(ctx context.Context) {
+		<-ctx.Done()
+		time.Sleep(unit)
+		finished.Store(true)
+	}))
+
+	WaitOrFail(t, "root Cancel", func() { root.Cancel(nil) })
+	Expect(t, finished.Load(), BeTrue())
+	Expect(t, leaf.Canceled(), BeTrue())
+}
+
+func TestNestChildOfClosedParent(t *testing.T) {
+	parent := New(context.Background())
+	parent.Cancel(nil)
+
+	child := New(parent.Children())
+	WaitOrFail(t, "child of closed parent", func() { <-child.Done() })
+	Expect(t, child.Canceled(), BeTrue())
+}
+
+func TestNestWithDetachedIsNotWaitedNorCanceled(t *testing.T) {
+	parent := New(context.Background())
+	release := make(chan struct{})
+
+	child := New(parent.Children(), WithDetached())
+	must.NoError(child.Spawn(func(context.Context) { <-release }))
+
+	WaitOrFail(t, "parent Cancel", func() { parent.Cancel(nil) })
+	if child.Canceled() {
+		t.Fatal("detached child was canceled by parent")
+	}
+	select {
+	case <-child.Done():
+		t.Fatal("detached child was waited by parent")
+	default:
+	}
+
+	close(release)
+	WaitOrFail(t, "detached child own Cancel", func() { child.Cancel(nil) })
+	Expect(t, child.Canceled(), BeTrue())
+}
+
+func TestNestParentTimeoutWithStuckChild(t *testing.T) {
+	parent := New(context.Background(), WithShutdownTimeout(unit))
+	child := New(parent.Children())
+	release := make(chan struct{})
+	must.NoError(child.Spawn(func(context.Context) { <-release }))
+
+	WaitOrFail(t, "parent Cancel with stuck child", func() { parent.Cancel(nil) })
+	if err := parent.Err(); err == nil || !strings.Contains(err.Error(), "NEST_CLOSE_TIMEOUT") {
+		t.Fatalf("parent Err = %v, want NEST_CLOSE_TIMEOUT", err)
+	}
+
+	close(release)
+	WaitOrFail(t, "stuck child done", func() { <-child.Done() })
+}
+
+func TestNestNewChildConcurrentWithParentCancel(t *testing.T) {
+	for range 50 {
+		parent := New(context.Background())
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			parent.Cancel(nil)
+		}()
+		go func() {
+			defer wg.Done()
+			child := New(parent.Children())
+			<-child.Done()
+		}()
+		WaitOrFail(t, "concurrent child creation and parent Cancel", wg.Wait)
 	}
 }

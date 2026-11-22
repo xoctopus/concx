@@ -20,17 +20,36 @@ type Nest interface {
 	Canceled() bool
 }
 
+// spawner is the only capability a child needs from its nearest ancestor.
+type spawner interface {
+	Spawn(func(context.Context)) error
+}
+
+type tCtxParent struct{}
+
+// New creates a Nest whose lifetime is bound to ctx. If ctx was derived from
+// another Nest's Children(), the new Nest registers itself with the nearest
+// ancestor so that the ancestor's Cancel waits for it and the close signal
+// flows down through ctx. WithDetached detaches it from both: the ancestor
+// neither waits for it nor cancels it.
 func New(ctx context.Context, appliers ...OptionApplier) Nest {
 	x := &nest{
-		inherited: ctx,
-		done:      make(chan struct{}),
+		done: make(chan struct{}),
 	}
 
 	for _, applier := range appliers {
 		applier(&x.option)
 	}
 
-	x.dispatched, x.cancel = context.WithCancelCause(ctx)
+	parent, hasParent := ctx.Value(tCtxParent{}).(spawner)
+	if x.detached {
+		ctx = context.WithoutCancel(ctx)
+	}
+	x.inherited = ctx
+
+	var dispatched context.Context
+	dispatched, x.cancel = context.WithCancelCause(ctx)
+	x.dispatched = context.WithValue(dispatched, tCtxParent{}, x)
 
 	go func() {
 		var cause error
@@ -42,6 +61,12 @@ func New(ctx context.Context, appliers ...OptionApplier) Nest {
 		}
 		x.Cancel(cause)
 	}()
+
+	if hasParent && !x.detached {
+		// If the parent is already closed, Spawn fails; the child is then
+		// canceled by its own watcher because ctx is already done.
+		_ = parent.Spawn(func(context.Context) { <-x.done })
+	}
 
 	return x
 }
@@ -163,6 +188,7 @@ type option struct {
 	shutdownTimeout time.Duration
 	beforeCloseFunc func(context.Context)
 	afterCloseFunc  func(error) error
+	detached        bool
 }
 
 type OptionApplier func(*option)
@@ -192,5 +218,15 @@ func WithBeforeCloseFunc(beforeCloseFunc func(context.Context)) OptionApplier {
 func WithAfterCloseFunc(afterCloseFunc func(error) error) OptionApplier {
 	return func(o *option) {
 		o.afterCloseFunc = afterCloseFunc
+	}
+}
+
+// WithDetached detaches the nest from its ancestor's lifetime: it is not
+// registered with the ancestor, so the ancestor does not wait for it, and it
+// is not canceled by the ancestor's ctx (context.WithoutCancel). It must be
+// closed by its own Cancel.
+func WithDetached() OptionApplier {
+	return func(o *option) {
+		o.detached = true
 	}
 }
